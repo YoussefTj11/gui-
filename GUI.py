@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import QVBoxLayout
 import cv2
 
 # camera ip
-camera_ip = None #'http://192.168.137.15:8080/video'
+camera_ip = 'http://192.168.137.15:8080/video'
 from pyzbar.pyzbar import decode
 
 soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -633,11 +633,14 @@ class Ui_GripperRobotController(object):
         # Create a timer to update the camera feed
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
-        self.timer.start(20)  # Update every 20 milliseconds (50 frames per second)
+        self.timer.start(0)  # Update every 20 milliseconds (50 frames per second)
+        self.info = None
+        
     
     ## Frame Update
     def update_frame(self):
         ret, frame = self.cap.read()
+        self.frame = frame
         if ret:
             # Convert the OpenCV frame to a QImage
             height, width, channel = frame.shape
@@ -648,26 +651,31 @@ class Ui_GripperRobotController(object):
             # display camera on lapel called "self.camera"
             self.Camera.setPixmap(pixmap)
             decoded_objects = decode(frame)
-
-            # qr reading
-            for obj in decoded_objects:
-                # Draw a rectangle around the QR code
-                points = obj.polygon
-                if len(points) > 4:
-                    hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
-                    cv2.polylines(frame, [hull], True, (0, 255, 0), 2)
-                # Extract and print the QR code data
-                qr_data = obj.data.decode('utf-8')
-
-                # separate x and y in two variables
-                assignments = qr_data.split(',')
-                for assignment in assignments:
-                   var_name, var_value = assignment.split('=')
-    
-                   if var_name == 'x':
-                     self.xdistination = int(var_value)
-                   elif var_name == 'y':
-                     self.ydistination = int(var_value)
+            self.read_qr()
+            
+    # separate x and y in two variables
+    def read_qr(self):
+        qcd = cv2.QRCodeDetector()
+        retval, decoded_info, points, straight_qrcode = qcd.detectAndDecodeMulti(self.frame)
+        if retval:
+            if self.info != decoded_info:
+                print(decoded_info)
+                self.decoded = decoded_info
+                #self.camera_output()
+                return decoded_info
+            else:
+                return self.info 
+                
+        
+    def camera_output(self):
+        decoded = self.decoded
+        assignments = decoded.split(',')
+        for assignment in assignments:
+            var_name, var_value = assignment.split('=')
+            if var_name == 'x':
+                self.xdistination = int(var_value)
+            elif var_name == 'y':
+                self.ydistination = int(var_value)
 
 
 
